@@ -19,10 +19,11 @@ launched_processes = []
 
 # sigterm functions
 def on_exit(signum, frame):
+    print("Exiting")
     global launched_processes
     for p in launched_processes:
         try:
-            p.kill()
+            p.kill() # for some distributed this might not be enough
         except Exception as e:
             print(f"Process {p} killing not successful")
     sys.exit(0)
@@ -40,7 +41,7 @@ def find_free_ports(n: int = 1):
     finally:
         for s in sockets:
             s.close()
-    return ports
+    return ports if n>1 else ports[0]
 
 # jobs
 def launch_cmd(
@@ -124,7 +125,7 @@ def schedule_cmd_gpus(
                 exit_code = p.poll()
                 if exit_code is None:
                     all_done = False
-                elif exit_code == 1:
+                elif exit_code != 0:
                     stdout, stderr = p.communicate()
                     print(stdout, stderr)
                     pdb.set_trace()
