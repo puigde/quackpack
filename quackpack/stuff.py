@@ -3,10 +3,11 @@ import socket
 import subprocess
 from collections import namedtuple
 import time
-from typing import List
+from typing import List, Callable
 import os
 import signal
 import sys
+import pdb
 
 # namedtuples
 GpuInfo = namedtuple("GpuInfo", ["idx", "free_mbs", "total_mbs", "timestamp"])
@@ -28,11 +29,18 @@ def on_exit(signum, frame):
 
 
 # networks
-def find_free_port():
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("", 0))
-        return s.getsockname()[1]
-
+def find_free_ports(n: int = 1):
+    ports, sockets = [], []
+    try:
+        for _ in range(n):
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.bind(("", 0))
+            ports.append(s.getsockname()[1])
+            sockets.append(s)
+    finally:
+        for s in sockets:
+            s.close()
+    return ports
 
 # jobs
 def launch_cmd(
@@ -41,7 +49,11 @@ def launch_cmd(
     capture_output: bool = True,
     capture_errors: bool = True,
     use_async: bool = False,
+    command_apply_functions : List[Callable] = None,
 ):
+    if command_apply_functions is not None:
+        for c_fn in command_apply_functions:
+            command = c_fn(command)
     cmd_args = command.split(" ")
     run_fn = subprocess.Popen if use_async else subprocess.run
     try:
@@ -86,13 +98,12 @@ def get_memory_gpus(mode: str = "nvidia", most_free_first: bool = True):
 
 
 def schedule_cmd_gpus(
-    command_list: List[GpuJobInfo], timeout_s: int = 60 * 60 * 24 * 7, sleep_s: int = 3
+        command_list: List[GpuJobInfo], timeout_s: int = 60 * 60 * 24 * 7, sleep_s: int = 3, command_apply_functions : List[Callable] = None
 ):
+    # strategy: tries to fit largest job in the min gpus
     global launched_processes
-    # signal handlers
     signal.signal(signal.SIGINT, on_exit)
     signal.signal(signal.SIGTERM, on_exit)
-    # strategy: tries to fit largest job in the min gpus
     start_time = time.time()
     scheduled = [False for _ in range(len(command_list))]
     command_list = sorted(command_list, key=lambda x: x.total_mbs_gpus, reverse=True)
@@ -116,8 +127,6 @@ def schedule_cmd_gpus(
                 elif exit_code == 1:
                     stdout, stderr = p.communicate()
                     print(stdout, stderr)
-                    import pdb
-
                     pdb.set_trace()
             if all_done:
                 return 0
@@ -137,6 +146,7 @@ def schedule_cmd_gpus(
                     command=command_list[cmd_idx].cmd,
                     env_command=cmd_pre,
                     use_async=True,
+                    command_apply_functions=command_apply_functions,
                 )
                 launched_processes.append(process)
                 scheduled[cmd_idx] = True
@@ -145,3 +155,10 @@ def schedule_cmd_gpus(
                 time.sleep(sleep_s)
                 break
         gpus_memory = get_memory_gpus()
+
+# apply functions
+def fresh_port_mod_fn(cmd: str):
+    port = find_free_ports()
+    cmd_parts = cmd.split()
+    cmd_parts.insert(cmd_parts.index("torch.distributed.launch") + 1, f"--master_port={port}")
+    return " ".join(cmd_parts)
