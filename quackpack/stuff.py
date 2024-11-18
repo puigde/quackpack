@@ -52,16 +52,16 @@ def launch_cmd(
     use_async: bool = False,
     command_apply_functions : List[Callable] = None,
 ):
-    if command_apply_functions is not None:
-        for c_fn in command_apply_functions:
-            command = c_fn(command)
-    cmd_args = command.split(" ")
     run_fn = subprocess.Popen if use_async else subprocess.run
     try:
         env = os.environ.copy()
         if env_command:
             env_var, env_value = env_command.split("=", 1)
             env[env_var] = env_value
+        if command_apply_functions is not None:
+            for c_fn in command_apply_functions:
+                command = c_fn(command, env)
+        cmd_args = command.split(" ")
         return run_fn(
             cmd_args,
             bufsize=1,
@@ -158,8 +158,15 @@ def schedule_cmd_gpus(
         gpus_memory = get_memory_gpus()
 
 # apply functions
-def fresh_port_mod_fn(cmd: str):
+def insert_string(total_str, previous_str, insert_str):
+    total_str = total_str.split()
+    total_str.insert(total_str.index(previous_str)+1, insert_str)
+    return " ".join(total_str)
+
+def fresh_port_mod_fn(cmd: str, env=None):
     port = find_free_ports()
-    cmd_parts = cmd.split()
-    cmd_parts.insert(cmd_parts.index("torch.distributed.launch") + 1, f"--master_port={port}")
-    return " ".join(cmd_parts)
+    return insert_string(cmd, "torch.distributed.launch", f"--master_port={port}")
+
+def fresh_n_proc_per_node(cmd: str, env):
+    return insert_string(cmd, "torch.distributed.launch", f"--nproc_per_node={len(env['CUDA_VISIBLE_DEVICES'].split(','))}")
+    
