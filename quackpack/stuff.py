@@ -104,6 +104,7 @@ def schedule_cmd_gpus(
     timeout_s: int = 60 * 60 * 24 * 7,
     sleep_s: int = 3,
     command_apply_functions: List[Callable] = None,
+    debug_on_crash: bool = False,
 ):
     # strategy: tries to fit largest job in the min gpus
     global launched_processes
@@ -132,7 +133,8 @@ def schedule_cmd_gpus(
                 elif exit_code != 0:
                     stdout, stderr = p.communicate()
                     print(stdout, stderr)
-                    pdb.set_trace()
+                    if debug_on_crash:
+                        pdb.set_trace()
             if all_done:
                 return 0
 
