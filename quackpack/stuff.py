@@ -23,7 +23,7 @@ def on_exit(signum, frame):
     global launched_processes
     for p in launched_processes:
         try:
-            p.kill() # for some distributed this might not be enough
+            p.kill()  # for some distributed this might not be enough
         except Exception as e:
             print(f"Process {p} killing not successful")
     sys.exit(0)
@@ -41,7 +41,8 @@ def find_free_ports(n: int = 1):
     finally:
         for s in sockets:
             s.close()
-    return ports if n>1 else ports[0]
+    return ports if n > 1 else ports[0]
+
 
 # jobs
 def launch_cmd(
@@ -50,7 +51,7 @@ def launch_cmd(
     capture_output: bool = True,
     capture_errors: bool = True,
     use_async: bool = False,
-    command_apply_functions : List[Callable] = None,
+    command_apply_functions: List[Callable] = None,
 ):
     run_fn = subprocess.Popen if use_async else subprocess.run
     try:
@@ -99,7 +100,10 @@ def get_memory_gpus(mode: str = "nvidia", most_free_first: bool = True):
 
 
 def schedule_cmd_gpus(
-        command_list: List[GpuJobInfo], timeout_s: int = 60 * 60 * 24 * 7, sleep_s: int = 3, command_apply_functions : List[Callable] = None
+    command_list: List[GpuJobInfo],
+    timeout_s: int = 60 * 60 * 24 * 7,
+    sleep_s: int = 3,
+    command_apply_functions: List[Callable] = None,
 ):
     # strategy: tries to fit largest job in the min gpus
     global launched_processes
@@ -157,16 +161,22 @@ def schedule_cmd_gpus(
                 break
         gpus_memory = get_memory_gpus()
 
+
 # apply functions
 def insert_string(total_str, previous_str, insert_str):
     total_str = total_str.split()
-    total_str.insert(total_str.index(previous_str)+1, insert_str)
+    total_str.insert(total_str.index(previous_str) + 1, insert_str)
     return " ".join(total_str)
+
 
 def fresh_port_mod_fn(cmd: str, env=None):
     port = find_free_ports()
     return insert_string(cmd, "torch.distributed.launch", f"--master_port={port}")
 
+
 def fresh_n_proc_per_node(cmd: str, env):
-    return insert_string(cmd, "torch.distributed.launch", f"--nproc_per_node={len(env['CUDA_VISIBLE_DEVICES'].split(','))}")
-    
+    return insert_string(
+        cmd,
+        "torch.distributed.launch",
+        f"--nproc_per_node={len(env['CUDA_VISIBLE_DEVICES'].split(','))}",
+    )
