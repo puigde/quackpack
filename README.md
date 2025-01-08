@@ -35,7 +35,8 @@ qp.schedule_cmd_gpus(cmd_list, sleep_s=30)
 ```python
 def schedule_cmd_gpus
     ...
-    command_apply_functions: List[Callable] = None, # list of functions that get cmd string and an environment dict and return a modified cmd string for launchtime
+    command_apply_functions: List[Callable] = None, # list of functions that get cmd string
+    # and an environment dict and return a modified cmd string for launchtime
     debug_on_crash: bool = False, # will open a python debugger if crashed
 ```
 We can dynamically adapt our commands with `command_apply_functions`, for instance, when quackpack schedules into multi-gpu we might want to update the number of processes per node in our `torch.distributed.launch` command accordingly. This is done by looking at the `CUDA_VISIBLE_DEVICES` env var which quackpack sets when scheduling.
@@ -60,8 +61,11 @@ Both functions are found in quackpack and can be called directly with `qp.<funct
 **Example:** scheduling a `torch.distributed.launch` with 100Gbs budget with dynamic number of processes and nodes.
 ```python
 import quackpack as qp
-cmd = "python -m torch.distributed.launch experiment_1.py --experiment_arg_1 arg_1_value --experiment_arg2 arg_2_value"
-qp.schedule_cmd_gpus(command_list=[qp.GpuJobInfo(cmd, 100*1000)], command_apply_functions=[qp.fresh_port_mod_fn, qp.fresh_n_proc_per_node])
+cmd = "python -m torch.distributed.launch experiment_1.py --some_arg"
+qp.schedule_cmd_gpus(
+    command_list=[qp.GpuJobInfo(cmd, 100*1000)],
+    command_apply_functions=[qp.fresh_port_mod_fn, qp.fresh_n_proc_per_node],
+)
 ```
 
 ## Development
